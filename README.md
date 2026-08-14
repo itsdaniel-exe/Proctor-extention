@@ -1,24 +1,38 @@
+<div align="center">
+
 # Exam Proctor Extension
 
-A Chrome extension for monitoring exams using the YOLO object detection model. It helps proctors keep an eye on examinees by detecting objects like phones, books, or multiple people in the frame.
+**AI-powered exam proctoring, right in your browser.**
 
-## Features
+A Chrome extension that watches over online exams — live camera and screen monitoring, automatic violation detection, and on-device AI object detection, all without a single frame of video ever leaving the browser for analysis.
 
-*   **Real-time Object Detection**: Uses YOLO v8 to spot things like cell phones, books, etc.
-*   **Role-Based Access**: Separate views for Examiners (create exams) and Examinees (join exams).
-*   **Live Monitoring**: Examiners can see live feeds and get alerts for violations.
-*   **Secure**: Built on Firebase for auth and realtime database interactions.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Chrome Extension](https://img.shields.io/badge/Chrome-Extension-4285F4?logo=googlechrome&logoColor=white)](https://developer.chrome.com/docs/extensions/)
+[![Manifest V3](https://img.shields.io/badge/Manifest-V3-brightgreen)](https://developer.chrome.com/docs/extensions/mv3/intro/)
+[![YOLOv8](https://img.shields.io/badge/AI-YOLOv8-orange)](https://github.com/ultralytics/ultralytics)
+[![ONNX Runtime](https://img.shields.io/badge/Inference-ONNX%20Runtime-005CED)](https://onnxruntime.ai/)
+[![Firebase](https://img.shields.io/badge/Backend-Firebase-FFCA28?logo=firebase&logoColor=white)](https://firebase.google.com/)
 
+</div>
+
+---
+
+## What it does
+
+- 🤖 **On-device AI detection** — a YOLOv8 model runs fully in-browser via ONNX Runtime, spotting phones, books, extra people, and other flagged objects in real time
+- 📊 **Live proctor dashboard** — every connected examinee, their camera/screen status, and a running violation feed in one view, with per-examinee controls
+- 🕵️ **Behavioral monitoring** — flags suspicious activity anywhere the examinee's browser goes during the exam: dev-tools shortcuts, tab switching, flagged URLs, and more
+- 🧵 **Persistent exam session** — camera and screen sharing run in their own dedicated tab that survives for the whole exam
+- 🔐 **Role-based access** — distinct flows for examiners (create & manage exams) and examinees (join & attend)
+- ⚡ **Real-time sync** — accounts, exam state, and violations all sync live through Firebase
+- 🧪 **Graceful demo mode** — clearly labeled simulated data whenever a live backend isn't connected, instead of silently breaking
 
 ## Usage
 
-*   **Admin/Examiner**: Sign up, create an exam, and share the code with students.
-*   **Student**: Enter the exam code to join. You'll need to allow camera and screen sharing permissions.
+**As an examiner** — register, create an exam, and share the generated code. A live monitoring dashboard opens automatically with camera/screen feeds, a violation log, and per-examinee controls.
 
-## Tech Stack
-*   **Frontend**: HTML, CSS, JavaScript
-*   **AI/ML**: YOLO v8 (ONNX runtime)
-*   **Backend**: Firebase (Auth, Firestore, Functions)
+**As an examinee** — register, enter the exam code to join, and enable your camera/screen from the dedicated exam-session tab. Violations are detected and reported to the examiner automatically for the rest of the exam.
 
 ## License
+
 MIT

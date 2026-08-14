@@ -10,6 +10,9 @@ coverage/
 build/
 dist/
 
+# Local-only docs (contains setup/config details not meant for the public repo)
+SETUP.md
+
 # Misc
 .DS_Store
 .env
