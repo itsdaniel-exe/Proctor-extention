@@ -14,12 +14,25 @@ class ExamMonitoringInterface {
             frameRate: 1, // Faster frame rate for real-time feel
             autoFlag: true
         };
+        // Firebase is still using the placeholder config shipped in
+        // firebase-config.js - there's no real backend to talk to, so we
+        // fall back to clearly-labeled simulated data instead of silently
+        // showing fake violations as if they were real.
+        this.demoMode = typeof firebaseConfig !== 'undefined' && firebaseConfig.apiKey === 'YOUR_API_KEY';
         this.init();
     }
 
     init() {
         this.bindEvents();
+        this.updateDemoModeBanner();
         this.waitForFirebaseAndInit();
+    }
+
+    updateDemoModeBanner() {
+        const banner = document.getElementById('demoModeBanner');
+        if (banner) {
+            banner.classList.toggle('hidden', !this.demoMode);
+        }
     }
 
     async waitForFirebaseAndInit() {
@@ -131,8 +144,68 @@ class ExamMonitoringInterface {
         document.getElementById('acknowledgeViolation').addEventListener('click', () => this.acknowledgeViolation());
         document.getElementById('dismissViolation').addEventListener('click', () => this.dismissViolation());
 
+        // Examinee details modal
+        const closeExamineeDetailsBtn = document.getElementById('closeExamineeDetails');
+        if (closeExamineeDetailsBtn) {
+            closeExamineeDetailsBtn.addEventListener('click', () => this.hideExamineeDetails());
+        }
+
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => this.handleKeyboardShortcuts(e));
+    }
+
+    // --- Minimal modal focus management -----------------------------------
+    // Moves focus into the modal when it opens, traps Tab/Shift+Tab within
+    // it, and restores focus to whatever triggered it on close.
+    openModal(modal) {
+        if (!modal) return;
+        this._lastFocusedElement = document.activeElement;
+        modal.classList.remove('hidden');
+
+        const getFocusable = () => Array.from(
+            modal.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')
+        ).filter(el => !el.disabled && el.offsetParent !== null);
+
+        const focusable = getFocusable();
+        if (focusable.length) focusable[0].focus();
+
+        this._modalKeydownHandler = (e) => {
+            if (e.key !== 'Tab') return;
+            const items = getFocusable();
+            if (items.length === 0) return;
+            const first = items[0];
+            const last = items[items.length - 1];
+            if (e.shiftKey && document.activeElement === first) {
+                e.preventDefault();
+                last.focus();
+            } else if (!e.shiftKey && document.activeElement === last) {
+                e.preventDefault();
+                first.focus();
+            }
+        };
+        modal.addEventListener('keydown', this._modalKeydownHandler);
+    }
+
+    closeModal(modal) {
+        if (!modal) return;
+        modal.classList.add('hidden');
+        if (this._modalKeydownHandler) {
+            modal.removeEventListener('keydown', this._modalKeydownHandler);
+            this._modalKeydownHandler = null;
+        }
+        if (this._lastFocusedElement && typeof this._lastFocusedElement.focus === 'function') {
+            this._lastFocusedElement.focus();
+        }
+    }
+
+    // Escape a user-supplied string before interpolating it into innerHTML.
+    // Examinee name/email come from Firestore's fullName/email fields, which
+    // are user-controlled, so they must never be inserted as raw HTML.
+    escapeHtml(value) {
+        if (value === undefined || value === null) return '';
+        const div = document.createElement('div');
+        div.textContent = String(value);
+        return div.innerHTML;
     }
 
     async loadExamByCode() {
@@ -341,9 +414,14 @@ class ExamMonitoringInterface {
                         this.updateExamineeList();
                         this.updateMonitoringGrid();
                         this.updateSystemStatus();
-                        
-                        // Start periodic violation monitoring
-                        this.startMockViolations();
+
+                        // Only ever generate simulated violations when Firebase
+                        // isn't actually configured - never mix fake data into
+                        // a real monitoring session.
+                        if (this.demoMode && !this.mockViolationsStarted) {
+                            this.mockViolationsStarted = true;
+                            this.startMockViolations();
+                        }
                         return;
                     } else {
                         console.log('Exam document not found in Firebase:', this.currentExam.id);
@@ -381,12 +459,23 @@ class ExamMonitoringInterface {
             const status = this.getExamineeStatus(examinee);
             const statusClass = this.getStatusClass(status);
 
-            examineeItem.innerHTML = `
-                <div class="examinee-info">
-                    <span class="examinee-name">${examinee.name || 'Unknown'}</span>
-                    <span class="examinee-status ${statusClass}">${status}</span>
-                </div>
-            `;
+            const info = document.createElement('div');
+            info.className = 'examinee-info';
+
+            // examinee.name comes from Firestore's user-controlled
+            // fullName/email fields - use textContent, never innerHTML, so it
+            // can never be interpreted as markup.
+            const nameSpan = document.createElement('span');
+            nameSpan.className = 'examinee-name';
+            nameSpan.textContent = examinee.name || 'Unknown';
+
+            const statusSpan = document.createElement('span');
+            statusSpan.className = `examinee-status ${statusClass}`;
+            statusSpan.textContent = status;
+
+            info.appendChild(nameSpan);
+            info.appendChild(statusSpan);
+            examineeItem.appendChild(info);
 
             examineeItem.addEventListener('click', () => this.focusExaminee(userId));
             examineeList.appendChild(examineeItem);
@@ -425,95 +514,64 @@ class ExamMonitoringInterface {
 
         const status = this.getExamineeStatus(examinee);
         const statusClass = this.getStatusClass(status);
+        // examinee.name comes from Firestore's user-controlled
+        // fullName/email fields - escape before interpolating into innerHTML.
+        const safeName = this.escapeHtml(examinee.name || 'Unknown');
+        const violationCount = examinee.violations || 0;
+        const severityClass = violationCount > 3 ? 'severity-high' : (violationCount > 0 ? 'severity-medium' : 'severity-none');
 
         // Create real camera feed container with image element
-        const cameraFeed = examinee.cameraEnabled ? 
-            `<div class="camera-feed-container" style="
-                width: 100%; height: 200px; 
-                border-radius: 8px;
-                position: relative;
-                overflow: hidden;
-                background: #1e293b;
-            ">
-                <img id="camera-${userId}" 
-                     style="width: 100%; height: 100%; object-fit: cover; border-radius: 8px;" 
+        const cameraFeed = examinee.cameraEnabled ?
+            `<div class="camera-feed-container">
+                <img id="camera-${userId}"
                      alt="Camera feed loading..."
                      onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                <div class="camera-placeholder" style="
-                    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-                    background: linear-gradient(45deg, #1e293b 25%, #334155 25%, #334155 50%, #1e293b 50%, #1e293b 75%, #334155 75%);
-                    background-size: 20px 20px;
-                    border-radius: 8px;
-                    display: flex; align-items: center; justify-content: center; color: #64748b;
-                    animation: cameraScan 2s linear infinite;
-                ">
-                    📹 Camera Loading...
-                </div>
-                <div style="position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.7); color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px;">
-                    📹 Camera Active
-                </div>
-                <div style="position: absolute; bottom: 10px; right: 10px; background: rgba(34, 197, 94, 0.8); color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px;">
-                    LIVE
-                </div>
+                <div class="camera-placeholder">📹 Camera Loading...</div>
+                <div class="feed-badge">📹 Camera Active</div>
+                <div class="feed-badge-live">LIVE</div>
             </div>` :
-            `<div style="width: 100%; height: 200px; background: #1e293b; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #64748b;">
-                📹 Camera Off
-            </div>`;
+            `<div class="feed-off feed-off-camera">📹 Camera Off</div>`;
 
-        const screenFeed = examinee.screenEnabled ? 
-            `<div class="screen-feed-container" style="
-                width: 100%; height: 150px; 
-                border-radius: 8px;
-                position: relative;
-                overflow: hidden;
-                background: #1e293b;
-            ">
-                <img id="screen-${userId}" 
-                     style="width: 100%; height: 100%; object-fit: cover; border-radius: 8px;" 
+        const screenFeed = examinee.screenEnabled ?
+            `<div class="screen-feed-container">
+                <img id="screen-${userId}"
                      alt="Screen share loading..."
                      onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                <div class="screen-placeholder" style="
-                    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-                    background: linear-gradient(90deg, #0f172a 25%, #1e293b 25%, #1e293b 50%, #0f172a 50%, #0f172a 75%, #1e293b 75%);
-                    background-size: 30px 30px;
-                    border-radius: 8px;
-                    display: flex; align-items: center; justify-content: center; color: #64748b;
-                    animation: screenScan 3s linear infinite;
-                ">
-                    🖥️ Screen Loading...
-                </div>
-                <div style="position: absolute; top: 5px; left: 5px; background: rgba(0,0,0,0.7); color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px;">
-                    🖥️ Screen Active
-                </div>
+                <div class="screen-placeholder">🖥️ Screen Loading...</div>
+                <div class="feed-badge feed-badge-sm">🖥️ Screen Active</div>
             </div>` :
-            `<div style="width: 100%; height: 150px; background: #1e293b; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #64748b;">
-                🖥️ Screen Off
-            </div>`;
+            `<div class="feed-off feed-off-screen">🖥️ Screen Off</div>`;
 
         tile.innerHTML = `
             <div class="tile-header">
-                <span class="tile-title">${examinee.name || 'Unknown'}</span>
+                <span class="tile-title">${safeName}</span>
                 <span class="tile-status ${statusClass}">${status}</span>
-                <span class="violation-count" style="background: ${examinee.violations > 3 ? '#ef4444' : examinee.violations > 0 ? '#f59e0b' : '#10b981'}; color: white; padding: 2px 6px; border-radius: 10px; font-size: 11px;">${examinee.violations || 0}</span>
+                <span class="violation-count-badge ${severityClass}">${violationCount}</span>
             </div>
-            <div class="video-container" style="position: relative;">
+            <div class="video-container">
                 ${cameraFeed}
-                <div class="video-overlay" style="position: absolute; bottom: 8px; left: 8px; background: rgba(0,0,0,0.7); color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px;">
+                <div class="video-overlay video-overlay-bottom-left">
                     ${this.formatLastActivity(examinee.joinTime)}
                 </div>
             </div>
-            <div class="video-container" style="margin-top: 10px; position: relative;">
+            <div class="video-container video-container-stacked">
                 ${screenFeed}
-                <div class="video-overlay" style="position: absolute; bottom: 8px; left: 8px; background: rgba(0,0,0,0.7); color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px;">
+                <div class="video-overlay video-overlay-bottom-left">
                     ${this.formatLastActivity(examinee.joinTime)}
                 </div>
             </div>
             <div class="tile-controls">
-                <button class="btn btn-primary" onclick="examMonitoring.focusExaminee('${userId}')">Focus</button>
-                <button class="btn btn-warning" onclick="examMonitoring.pauseExaminee('${userId}')">Pause</button>
-                <button class="btn btn-danger" onclick="examMonitoring.removeExaminee('${userId}')">Remove</button>
+                <button class="btn btn-primary" data-action="focus">Focus</button>
+                <button class="btn btn-warning" data-action="pause">Pause</button>
+                <button class="btn btn-danger" data-action="remove">Remove</button>
             </div>
         `;
+
+        // Wire up controls directly instead of inline onclick handlers that
+        // reach for a global `examMonitoring` reference.
+        tile.querySelector('[data-action="focus"]').addEventListener('click', () => this.focusExaminee(userId));
+        tile.querySelector('[data-action="pause"]').addEventListener('click', () => this.pauseExaminee(userId));
+        tile.querySelector('[data-action="remove"]').addEventListener('click', () => this.removeExaminee(userId));
 
         // Start real-time monitoring for this examinee
         this.startRealtimeMonitoring(userId);
@@ -590,62 +648,6 @@ class ExamMonitoringInterface {
                 }
             }
         }, 10000); // Every 10 seconds
-    }
-
-    // Add initial mock violations for demo
-    addInitialMockViolations() {
-        const examineeIds = Array.from(this.examinees.keys());
-        if (examineeIds.length === 0) return;
-        
-        const violationTypes = [
-            'Cell Phone Detected',
-            'Looking Away',
-            'Multiple People Detected',
-            'Book/Notes Detected'
-        ];
-        
-        // Add 1-2 initial violations per student
-        examineeIds.forEach(examineeId => {
-            const examinee = this.examinees.get(examineeId);
-            if (examinee) {
-                const numViolations = Math.floor(Math.random() * 2) + 1; // 1-2 violations
-                
-                for (let i = 0; i < numViolations; i++) {
-                    const randomType = violationTypes[Math.floor(Math.random() * violationTypes.length)];
-                    const severity = randomType.includes('Cell Phone') || randomType.includes('Multiple People') ? 'high' : 'medium';
-                    
-                    const violation = {
-                        id: 'initial-violation-' + examineeId + '-' + i,
-                        examineeId: examineeId,
-                        examineeName: examinee.name,
-                        type: randomType,
-                        severity: severity,
-                        timestamp: new Date(Date.now() - Math.random() * 30 * 60 * 1000).toISOString(), // Random time in last 30 minutes
-                        description: `AI detected: ${randomType.toLowerCase()}`
-                    };
-                    
-                    this.violations.unshift(violation);
-                    examinee.violations++;
-                    
-                    if (severity === 'high') {
-                        examinee.status = 'danger';
-                    } else if (examinee.status !== 'danger') {
-                        examinee.status = 'warning';
-                    }
-                }
-            }
-        });
-        
-        // Keep only last 10 violations
-        if (this.violations.length > 10) {
-            this.violations = this.violations.slice(0, 10);
-        }
-        
-        this.updateViolationsList();
-        this.updateExamineeList();
-        this.updateMonitoringGrid();
-        
-        console.log('Initialized violation monitoring');
     }
 
     // Start real-time monitoring for an examinee
@@ -837,11 +839,13 @@ class ExamMonitoringInterface {
     }
 
     getExamineeStatus(examinee) {
-        if (examinee.violations && examinee.violations.length > 0) {
-            const highViolations = examinee.violations.filter(v => v.severity === 'high');
-            if (highViolations.length > 0) return 'Warning';
-            return 'Caution';
-        }
+        // examinee.violations is a count (see loadExaminees()), not an array
+        // of violation objects, so severity comes from the `status` field
+        // that gets set directly by processYOLOViolations()/startMockViolations()
+        // when a high/medium severity violation is recorded.
+        if (examinee.status === 'danger') return 'Warning';
+        if (examinee.status === 'warning') return 'Caution';
+        if (examinee.violations > 0) return 'Caution';
         return 'Active';
     }
 
@@ -956,28 +960,55 @@ class ExamMonitoringInterface {
         try {
             if (!this.currentExam) return;
 
-            const isPaused = this.isMonitoring;
-            const response = await chrome.runtime.sendMessage({
-                action: isPaused ? 'resumeMonitoring' : 'pauseMonitoring',
-                examId: this.currentExam.id
+            const newMonitoringState = !this.isMonitoring;
+
+            const { db } = window.firebaseApp;
+            await db.collection('exams').doc(this.currentExam.id).update({
+                monitoringPaused: !newMonitoringState
             });
 
-            if (response.success) {
-                this.isMonitoring = !isPaused;
-                this.updateMonitoringStatus();
-                
-                const pauseBtn = document.getElementById('pauseBtn');
-                if (this.isMonitoring) {
-                    pauseBtn.textContent = 'Pause';
-                    pauseBtn.className = 'btn btn-warning';
-                } else {
-                    pauseBtn.textContent = 'Resume';
-                    pauseBtn.className = 'btn btn-success';
-                }
+            this.isMonitoring = newMonitoringState;
+            this.updateMonitoringStatus();
+
+            const pauseBtn = document.getElementById('pauseBtn');
+            if (this.isMonitoring) {
+                pauseBtn.textContent = 'Pause';
+                pauseBtn.className = 'btn btn-warning';
+            } else {
+                pauseBtn.textContent = 'Resume';
+                pauseBtn.className = 'btn btn-success';
             }
         } catch (error) {
             console.error('Error toggling monitoring:', error);
+            this.showNotification('Failed to toggle monitoring', 'error');
         }
+    }
+
+    // Read-modify-write helpers matching the pattern already used elsewhere
+    // in this codebase (see popup.js) for Firestore array fields that have no
+    // atomic "update one entry" operation.
+    async updateExamineesArray(mutatorFn) {
+        const { db } = window.firebaseApp;
+        const examRef = db.collection('exams').doc(this.currentExam.id);
+        const examDoc = await examRef.get();
+        if (!examDoc.exists) throw new Error('Exam not found');
+
+        const examinees = examDoc.data().examinees || [];
+        const updated = mutatorFn(examinees);
+        await examRef.update({ examinees: updated });
+        return updated;
+    }
+
+    async updateViolationsArray(mutatorFn) {
+        const { db } = window.firebaseApp;
+        const examRef = db.collection('exams').doc(this.currentExam.id);
+        const examDoc = await examRef.get();
+        if (!examDoc.exists) throw new Error('Exam not found');
+
+        const violations = examDoc.data().violations || [];
+        const updated = mutatorFn(violations);
+        await examRef.update({ violations: updated });
+        return updated;
     }
 
     updateMonitoringStatus() {
@@ -994,8 +1025,8 @@ class ExamMonitoringInterface {
     }
 
     showSettings() {
-        document.getElementById('settingsModal').classList.remove('hidden');
-        
+        this.openModal(document.getElementById('settingsModal'));
+
         // Load current settings
         document.getElementById('yoloConfidence').value = this.settings.yoloConfidence;
         document.getElementById('confidenceValue').textContent = this.settings.yoloConfidence;
@@ -1006,7 +1037,7 @@ class ExamMonitoringInterface {
     }
 
     hideSettings() {
-        document.getElementById('settingsModal').classList.add('hidden');
+        this.closeModal(document.getElementById('settingsModal'));
     }
 
     async saveSettings() {
@@ -1026,10 +1057,10 @@ class ExamMonitoringInterface {
                 });
             }
 
-            // Update YOLO thresholds in background script
-            await chrome.runtime.sendMessage({
-                action: 'updateYOLOThresholds',
-                thresholds: {
+            // YOLO thresholds are a purely client-side detection-sensitivity
+            // setting - just persist them locally, no backend call needed.
+            await chrome.storage.local.set({
+                yoloThresholds: {
                     confidence: newSettings.yoloConfidence,
                     nms: newSettings.yoloNMS
                 }
@@ -1068,7 +1099,7 @@ class ExamMonitoringInterface {
             document.querySelectorAll('.examinee-item').forEach(item => {
                 item.classList.remove('active');
             });
-            
+
             const examineeItem = document.querySelector(`[data-user-id="${userId}"]`);
             if (examineeItem) {
                 examineeItem.classList.add('active');
@@ -1080,115 +1111,144 @@ class ExamMonitoringInterface {
                 tile.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
 
-            // Get detailed examinee info
-            const response = await chrome.runtime.sendMessage({
-                action: 'getExamineeDetails',
-                userId
-            });
-
-            if (response.success) {
-                this.showExamineeDetails(response.examinee);
+            // Examinee data is already loaded locally by loadExaminees() -
+            // no need for a round trip through background.js.
+            const examinee = this.examinees.get(userId);
+            if (examinee) {
+                const recentViolations = this.violations.filter(v => v.examineeId === userId);
+                this.showExamineeDetails({ ...examinee, id: userId, recentViolations });
             }
         } catch (error) {
             console.error('Error focusing examinee:', error);
         }
     }
 
+    showExamineeDetails(examinee) {
+        const nameEl = document.getElementById('examineeDetailName');
+        const emailEl = document.getElementById('examineeDetailEmail');
+        const bodyEl = document.getElementById('examineeDetailsBody');
+        if (!bodyEl) return;
+
+        // Name/email are user-controlled - set via textContent, never innerHTML.
+        if (nameEl) nameEl.textContent = examinee.name || 'Unknown';
+        if (emailEl) emailEl.textContent = examinee.email || 'Unknown';
+
+        const status = this.getExamineeStatus(examinee);
+        const violationsHtml = (examinee.recentViolations || []).slice(0, 5)
+            .map(v => `<li>${this.escapeHtml(this.formatViolationType(v.type))} - <span class="violation-severity ${v.severity}">${this.escapeHtml(v.severity)}</span> - ${new Date(v.timestamp).toLocaleString()}</li>`)
+            .join('') || '<li>No recent violations</li>';
+
+        bodyEl.innerHTML = `
+            <p><strong>Status:</strong> ${this.escapeHtml(status)}</p>
+            <p><strong>Violation count:</strong> ${examinee.violations || 0}</p>
+            <p><strong>Camera:</strong> ${examinee.cameraEnabled ? 'Enabled' : 'Off'}</p>
+            <p><strong>Screen Share:</strong> ${examinee.screenEnabled ? 'Enabled' : 'Off'}</p>
+            <p><strong>Joined:</strong> ${examinee.joinTime ? new Date(examinee.joinTime).toLocaleString() : 'Unknown'}</p>
+            <h4>Recent Violations</h4>
+            <ul>${violationsHtml}</ul>
+        `;
+
+        this.openModal(document.getElementById('examineeDetailsModal'));
+    }
+
+    hideExamineeDetails() {
+        this.closeModal(document.getElementById('examineeDetailsModal'));
+    }
+
     async pauseExaminee(userId) {
         try {
-            const response = await chrome.runtime.sendMessage({
-                action: 'pauseExamineeMonitoring',
-                userId
-            });
+            const examinee = this.examinees.get(userId);
+            const shouldPause = !(examinee && examinee.paused);
 
-            if (response.success) {
-                this.showNotification(`Monitoring paused for examinee`, 'success');
-                this.loadExaminees(); // Refresh the list
-            }
+            await this.updateExamineesArray(examinees => examinees.map(e => {
+                if ((e.uid || e.id) === userId) {
+                    return { ...e, paused: shouldPause };
+                }
+                return e;
+            }));
+
+            this.showNotification(shouldPause ? 'Monitoring paused for examinee' : 'Monitoring resumed for examinee', 'success');
+            this.loadExaminees(); // Refresh the list
         } catch (error) {
             console.error('Error pausing examinee:', error);
+            this.showNotification('Failed to update examinee monitoring', 'error');
         }
     }
 
     async removeExaminee(userId) {
         try {
             if (confirm('Are you sure you want to remove this examinee from the exam?')) {
-                const response = await chrome.runtime.sendMessage({
-                    action: 'removeExaminee',
-                    userId,
-                    examId: this.currentExam.id
-                });
+                await this.updateExamineesArray(examinees => examinees.filter(e => (e.uid || e.id) !== userId));
 
-                if (response.success) {
-                    this.examinees.delete(userId);
-                    this.updateExamineeList();
-                    this.updateMonitoringGrid();
-                    this.updateSystemStatus();
-                    this.showNotification('Examinee removed successfully', 'success');
-                }
+                this.examinees.delete(userId);
+                this.updateExamineeList();
+                this.updateMonitoringGrid();
+                this.updateSystemStatus();
+                this.showNotification('Examinee removed successfully', 'success');
             }
         } catch (error) {
             console.error('Error removing examinee:', error);
+            this.showNotification('Failed to remove examinee', 'error');
         }
     }
 
     showViolationDetails(violation) {
         const violationDetails = document.getElementById('violationDetails');
-        
+
+        // Every violation object in this codebase uses `examineeId`, not
+        // `userId` - this lookup used to always miss.
+        const examineeName = this.examinees.get(violation.examineeId)?.name || violation.examineeName || 'Unknown';
+
         violationDetails.innerHTML = `
             <div class="violation-detail">
-                <h4>Violation Type: ${this.formatViolationType(violation.type)}</h4>
-                <p><strong>Severity:</strong> <span class="violation-severity ${violation.severity}">${violation.severity}</span></p>
+                <h4>Violation Type: ${this.escapeHtml(this.formatViolationType(violation.type))}</h4>
+                <p><strong>Severity:</strong> <span class="violation-severity ${violation.severity}">${this.escapeHtml(violation.severity)}</span></p>
                 <p><strong>Time:</strong> ${new Date(violation.timestamp).toLocaleString()}</p>
-                <p><strong>Examinee:</strong> ${this.examinees.get(violation.userId)?.name || 'Unknown'}</p>
-                ${violation.data ? `<p><strong>Details:</strong> ${JSON.stringify(violation.data, null, 2)}</p>` : ''}
+                <p><strong>Examinee:</strong> ${this.escapeHtml(examineeName)}</p>
+                ${violation.data ? `<p><strong>Details:</strong> ${this.escapeHtml(JSON.stringify(violation.data, null, 2))}</p>` : ''}
             </div>
         `;
 
-        document.getElementById('violationModal').classList.remove('hidden');
+        this.openModal(document.getElementById('violationModal'));
         this.currentViolation = violation;
     }
 
     hideViolationModal() {
-        document.getElementById('violationModal').classList.add('hidden');
+        this.closeModal(document.getElementById('violationModal'));
         this.currentViolation = null;
     }
 
     async acknowledgeViolation() {
-        if (this.currentViolation) {
-            try {
-                const response = await chrome.runtime.sendMessage({
-                    action: 'acknowledgeViolation',
-                    violationId: this.currentViolation.id
-                });
+        if (!this.currentViolation) return;
 
-                if (response.success) {
-                    this.showNotification('Violation acknowledged', 'success');
-                    this.hideViolationModal();
-                    this.loadViolations(); // Refresh violations list
-                }
-            } catch (error) {
-                console.error('Error acknowledging violation:', error);
-            }
+        try {
+            await this.updateViolationsArray(violations => violations.map(v =>
+                v.id === this.currentViolation.id
+                    ? { ...v, acknowledged: true, acknowledgedAt: new Date().toISOString() }
+                    : v
+            ));
+
+            this.showNotification('Violation acknowledged', 'success');
+            this.hideViolationModal();
+            this.loadViolations(); // Refresh violations list
+        } catch (error) {
+            console.error('Error acknowledging violation:', error);
+            this.showNotification('Failed to acknowledge violation', 'error');
         }
     }
 
     async dismissViolation() {
-        if (this.currentViolation) {
-            try {
-                const response = await chrome.runtime.sendMessage({
-                    action: 'dismissViolation',
-                    violationId: this.currentViolation.id
-                });
+        if (!this.currentViolation) return;
 
-                if (response.success) {
-                    this.showNotification('Violation dismissed', 'success');
-                    this.hideViolationModal();
-                    this.loadViolations(); // Refresh violations list
-                }
-            } catch (error) {
-                console.error('Error dismissing violation:', error);
-            }
+        try {
+            await this.updateViolationsArray(violations => violations.filter(v => v.id !== this.currentViolation.id));
+
+            this.showNotification('Violation dismissed', 'success');
+            this.hideViolationModal();
+            this.loadViolations(); // Refresh violations list
+        } catch (error) {
+            console.error('Error dismissing violation:', error);
+            this.showNotification('Failed to dismiss violation', 'error');
         }
     }
 
@@ -1229,6 +1289,7 @@ class ExamMonitoringInterface {
         if (e.key === 'Escape') {
             this.hideSettings();
             this.hideViolationModal();
+            this.hideExamineeDetails();
         }
     }
 

@@ -38,8 +38,7 @@ class ExamProctor {
         // Attend exam
         document.getElementById('joinExamBtn').addEventListener('click', () => this.joinExam());
         document.getElementById('backToMainBtn2').addEventListener('click', () => this.showMainOptions());
-        document.getElementById('enableCameraBtn').addEventListener('click', () => this.enableCamera());
-        document.getElementById('shareScreenBtn').addEventListener('click', () => this.shareScreen());
+        document.getElementById('reopenSessionBtn').addEventListener('click', () => this.reopenExamSession());
         document.getElementById('debugCameraBtn').addEventListener('click', () => this.debugCamera());
         document.getElementById('leaveExamBtn').addEventListener('click', () => this.leaveExam());
 
@@ -699,19 +698,65 @@ class ExamProctor {
             this.currentExam = code;
             document.getElementById('joinedExamTitle').textContent = examData.title;
             document.getElementById('examJoinedSection').style.display = 'block';
-            
+
             // Start countdown timer if exam has started
             if (examData.endTime) {
                 this.startExamCountdown(examData.endTime);
             }
-            
+
             // Monitor exam status for time expiration
             this.monitorExamStatus(code);
-            
-            alert('Successfully joined exam: ' + examData.title);
+
+            // Camera/screen capture needs to survive the popup closing (Chrome
+            // destroys the popup the instant it loses focus), so it runs in a
+            // dedicated persistent tab instead of inline here.
+            await this.openExamSession(code, examData.title, examData.endTime);
         } catch (error) {
             console.error('Failed to join exam:', error);
             alert('Failed to join exam. Please try again.');
+        }
+    }
+
+    // Reopen the exam-session tab if the student closed it accidentally.
+    async reopenExamSession() {
+        try {
+            const result = await chrome.storage.local.get(['activeExamSession']);
+            if (result.activeExamSession) {
+                chrome.tabs.create({ url: chrome.runtime.getURL('exam-session.html') });
+            } else if (this.currentExam) {
+                await this.openExamSession(
+                    this.currentExam,
+                    document.getElementById('joinedExamTitle').textContent || 'Exam Session',
+                    null
+                );
+            } else {
+                alert('No active exam session found. Please join an exam first.');
+            }
+        } catch (error) {
+            console.error('Failed to reopen exam session:', error);
+        }
+    }
+
+    // Open (or reopen) the persistent exam-session tab that hosts camera and
+    // screen-share capture for the duration of the exam.
+    async openExamSession(examId, examTitle, endTime) {
+        try {
+            await chrome.storage.local.set({
+                activeExamSession: {
+                    examId: examId,
+                    userId: this.currentUser.uid,
+                    userEmail: this.currentUser.email,
+                    examTitle: examTitle,
+                    endTime: endTime || null
+                }
+            });
+
+            chrome.tabs.create({
+                url: chrome.runtime.getURL('exam-session.html')
+            });
+        } catch (error) {
+            console.error('Failed to open exam session tab:', error);
+            alert('Failed to open the exam session tab. Please try again.');
         }
     }
     
@@ -795,71 +840,6 @@ class ExamProctor {
         }, 10000); // Check every 10 seconds
     }
 
-    async enableCamera() {
-        try {
-            console.log('Requesting camera access...');
-            
-            // Check if mediaDevices is available
-            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                throw new Error('Camera API not supported in this browser');
-            }
-            
-            // Request camera permission with more specific constraints
-            const stream = await navigator.mediaDevices.getUserMedia({ 
-                video: {
-                    width: { ideal: 640 },
-                    height: { ideal: 480 },
-                    facingMode: 'user'
-                }, 
-                audio: false // Disable audio to reduce permission complexity
-            });
-            
-            console.log('Camera access granted:', stream);
-            
-            // Create video element to show camera feed
-            const video = document.createElement('video');
-            video.srcObject = stream;
-            video.autoplay = true;
-            video.muted = true; // Mute to avoid audio issues
-            video.style.width = '200px';
-            video.style.height = '150px';
-            video.style.border = '2px solid #4CAF50';
-            video.style.borderRadius = '8px';
-            video.style.transform = 'scaleX(-1)'; // Mirror the video like a webcam
-            
-            // Add video to the exam joined section
-            const examSection = document.getElementById('examJoinedSection');
-            const existingVideo = examSection.querySelector('video');
-            if (existingVideo) {
-                existingVideo.remove();
-            }
-            examSection.appendChild(video);
-            
-            // Store stream for later use
-            this.cameraStream = stream;
-            
-            // Start frame capture for monitoring
-            this.startFrameCapture(stream, 'camera');
-            
-            alert('Camera enabled successfully! Your video feed is now active.');
-        } catch (error) {
-            console.error('Camera access failed:', error);
-            
-            let errorMessage = 'Camera access failed. ';
-            if (error.name === 'NotAllowedError') {
-                errorMessage += 'Please allow camera access in your browser settings.';
-            } else if (error.name === 'NotFoundError') {
-                errorMessage += 'No camera found. Please connect a camera.';
-            } else if (error.name === 'NotSupportedError') {
-                errorMessage += 'Camera not supported in this browser.';
-            } else {
-                errorMessage += `Error: ${error.message}`;
-            }
-            
-            alert(errorMessage);
-        }
-    }
-    
     // Debug camera function
     async debugCamera() {
         console.log('🔧 Starting camera debug...');
@@ -945,190 +925,6 @@ class ExamProctor {
         });
     }
     
-    // Send camera stream to monitoring system
-    async sendCameraStreamToMonitoring(stream) {
-        try {
-            if (!this.currentExam || !this.currentUser) return;
-            
-            const { db } = window.firebaseApp;
-            
-            // Update user's monitoring status in Firebase
-            await db.collection('exams').doc(this.currentExam).update({
-                [`examinees.${this.currentUser.uid}.cameraEnabled`]: true,
-                [`examinees.${this.currentUser.uid}.cameraStartedAt`]: new Date().toISOString()
-            });
-            
-            // Start capturing frames and sending to monitoring
-            this.startFrameCapture(stream, 'camera');
-            
-            console.log('Camera stream sent to monitoring system');
-        } catch (error) {
-            console.error('Failed to send camera stream:', error);
-        }
-    }
-    
-    // Capture frames from video stream and upload to Cloudinary (FREE)
-    startFrameCapture(stream, type) {
-        const video = document.createElement('video');
-        video.srcObject = stream;
-        video.play();
-        
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        
-        // Set canvas size
-        canvas.width = 640;
-        canvas.height = 480;
-        
-        // Capture frame every 1 second for real-time feel
-        const captureInterval = setInterval(async () => {
-            if (!this.currentExam || !stream.active) {
-                clearInterval(captureInterval);
-                return;
-            }
-            
-            try {
-                // Draw video frame to canvas
-                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                
-                // Convert canvas to blob (smaller than base64)
-                canvas.toBlob(async (blob) => {
-                    try {
-                        // Upload to Cloudinary using their free tier
-                        const formData = new FormData();
-                        formData.append('file', blob);
-                        formData.append('upload_preset', 'e7vaaufv'); // From your config
-                        formData.append('folder', `exam-monitoring/${this.currentExam}/${this.currentUser.uid}`);
-                        
-                        const response = await fetch('https://api.cloudinary.com/v1_1/drgpipjhr/image/upload', {
-                            method: 'POST',
-                            body: formData
-                        });
-                        
-                        const data = await response.json();
-                        
-                        // Store only the URL in Firebase (much smaller!)
-                        const { db } = window.firebaseApp;
-                        const examDoc = await db.collection('exams').doc(this.currentExam).get();
-                        const examineesArray = examDoc.data().examinees || [];
-                        const examineeIndex = examineesArray.findIndex(e => e.uid === this.currentUser.uid);
-                        
-                        if (examineeIndex !== -1) {
-                            examineesArray[examineeIndex][`${type}FrameUrl`] = data.secure_url;
-                            examineesArray[examineeIndex][`${type}FrameTimestamp`] = new Date().toISOString();
-                            examineesArray[examineeIndex][`${type}Enabled`] = true;
-                            
-                            await db.collection('exams').doc(this.currentExam).update({
-                                examinees: examineesArray
-                            });
-                            
-                            console.log(`📹 Frame capture for ${type}:`, {
-                                examId: this.currentExam,
-                                userId: this.currentUser.uid,
-                                examineesCount: examineesArray.length,
-                                examineeIndex: examineeIndex,
-                                cloudinaryUrl: data.secure_url
-                            });
-                        } else {
-                            console.error('Student not found in examinees array!', {
-                                userId: this.currentUser.uid,
-                                examineesArray: examineesArray
-                            });
-                        }
-                    } catch (error) {
-                        console.error('Cloudinary upload error:', error);
-                    }
-                }, 'image/jpeg', 0.8); // 80% quality for better real-time feel
-                
-            } catch (error) {
-                console.error('Frame capture error:', error);
-            }
-        }, 1000); // Every 1 second for real-time feel
-        
-        // Store interval so we can clear it later
-        if (type === 'camera') {
-            this.cameraInterval = captureInterval;
-        } else {
-            this.screenInterval = captureInterval;
-        }
-    }
-
-    async shareScreen() {
-        try {
-            // Request screen sharing permission
-            const stream = await navigator.mediaDevices.getDisplayMedia({ 
-                video: true, 
-                audio: true 
-            });
-            
-            // Create video element to show screen share
-            const video = document.createElement('video');
-            video.srcObject = stream;
-            video.autoplay = true;
-            video.style.width = '300px';
-            video.style.height = '200px';
-            video.style.border = '2px solid #FF9800';
-            video.style.borderRadius = '8px';
-            video.style.marginTop = '10px';
-            
-            // Add video to the exam joined section
-            const examSection = document.getElementById('examJoinedSection');
-            const existingScreenShare = examSection.querySelector('video[data-type="screen"]');
-            if (existingScreenShare) {
-                existingScreenShare.remove();
-            }
-            video.setAttribute('data-type', 'screen');
-            examSection.appendChild(video);
-            
-            // Store stream for later use
-            this.screenStream = stream;
-            
-            // Start screen capture for monitoring
-            this.startFrameCapture(stream, 'screen');
-            
-            // Handle when user stops sharing
-            stream.getVideoTracks()[0].onended = () => {
-                video.remove();
-                this.screenStream = null;
-                if (this.screenInterval) {
-                    clearInterval(this.screenInterval);
-                }
-                alert('Screen sharing stopped.');
-            };
-            
-            alert('Screen sharing enabled successfully! Your screen is now being monitored.');
-        } catch (error) {
-            console.error('Screen sharing failed:', error);
-            if (error.name === 'NotAllowedError') {
-                alert('Screen sharing was denied. Please allow screen sharing to continue.');
-            } else {
-                alert('Screen sharing failed. Please try again.');
-            }
-        }
-    }
-    
-    // Send screen stream to monitoring system
-    async sendScreenStreamToMonitoring(stream) {
-        try {
-            if (!this.currentExam || !this.currentUser) return;
-            
-            const { db } = window.firebaseApp;
-            
-            // Update user's monitoring status in Firebase
-            await db.collection('exams').doc(this.currentExam).update({
-                [`examinees.${this.currentUser.uid}.screenEnabled`]: true,
-                [`examinees.${this.currentUser.uid}.screenStartedAt`]: new Date().toISOString()
-            });
-            
-            // Start capturing frames and sending to monitoring
-            this.startFrameCapture(stream, 'screen');
-            
-            console.log('Screen stream sent to monitoring system');
-        } catch (error) {
-            console.error('Failed to send screen stream:', error);
-        }
-    }
-
     async leaveExam() {
         if (!this.currentExam) return;
 
@@ -1150,26 +946,11 @@ class ExamProctor {
                 clearInterval(this.statusMonitorInterval);
                 this.statusMonitorInterval = null;
             }
-            
-            // Clear capture intervals
-            if (this.cameraInterval) {
-                clearInterval(this.cameraInterval);
-                this.cameraInterval = null;
-            }
-            if (this.screenInterval) {
-                clearInterval(this.screenInterval);
-                this.screenInterval = null;
-            }
-            
-            // Stop media streams
-            if (this.cameraStream) {
-                this.cameraStream.getTracks().forEach(track => track.stop());
-                this.cameraStream = null;
-            }
-            if (this.screenStream) {
-                this.screenStream.getTracks().forEach(track => track.stop());
-                this.screenStream = null;
-            }
+
+            // Camera/screen capture now runs in the dedicated exam-session
+            // tab (see exam-session.js), not inline in the popup - nothing
+            // to stop here.
+            await chrome.storage.local.remove(['activeExamSession']);
 
             this.currentExam = null;
             document.getElementById('examJoinedSection').style.display = 'none';
@@ -1293,7 +1074,14 @@ class ExamProctor {
 // Initialize the extension when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     console.log('DOM loaded, checking Firebase availability...');
-    
+
+    // Keep the footer copyright year current without hardcoding it (inline
+    // scripts are blocked by the extension's CSP, so this lives here).
+    const footerYearEl = document.getElementById('footerYear');
+    if (footerYearEl) {
+        footerYearEl.textContent = new Date().getFullYear();
+    }
+
     // Wait for Firebase to be available
     const initExtension = () => {
         if (window.firebaseApp && window.firebaseReady) {

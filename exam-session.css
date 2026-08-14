@@ -1,0 +1,113 @@
+/* Layout for the persistent examinee exam-session tab.
+   Reuses popup.css design tokens (colors, buttons, exam-info, etc.) and just
+   adds the full-page grid layout that a dedicated tab needs instead of the
+   narrow popup width. */
+
+.session-container {
+    max-width: 1100px;
+    min-height: 100vh;
+    margin: 0 auto;
+    background: var(--surface);
+    box-shadow: var(--shadow-xl);
+}
+
+.session-header {
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+    color: white;
+    padding: 24px 32px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.session-header-left h1 {
+    font-size: clamp(20px, 3vw, 26px);
+    font-weight: 700;
+    letter-spacing: -0.025em;
+}
+
+.session-subtitle {
+    margin-top: 6px;
+    font-size: 13px;
+    opacity: 0.85;
+}
+
+.session-header-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.session-timer {
+    font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
+    font-size: 20px;
+    font-weight: 700;
+    background: rgba(255, 255, 255, 0.15);
+    padding: 8px 16px;
+    border-radius: var(--radius);
+}
+
+.session-main {
+    padding: 32px;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 24px;
+}
+
+.session-panel {
+    background: var(--surface-secondary);
+    border: 2px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+}
+
+.session-panel h2 {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 14px;
+    color: var(--text-primary);
+}
+
+.session-panel-wide {
+    grid-column: 1 / -1;
+}
+
+.media-preview {
+    width: 100%;
+    min-height: 220px;
+    background: #1e293b;
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 16px;
+    overflow: hidden;
+}
+
+.media-preview video {
+    width: 100%;
+    height: 100%;
+    max-height: 320px;
+    object-fit: cover;
+    border-radius: var(--radius);
+}
+
+.media-placeholder {
+    color: #94a3b8;
+    font-size: 14px;
+}
+
+.session-status-message {
+    padding: 12px 32px;
+    text-align: center;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+@media (min-width: 900px) {
+    .session-main {
+        grid-template-columns: 1fr 1fr;
+    }
+}

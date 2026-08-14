@@ -12,13 +12,13 @@
 
 // Firebase Configuration - Replace with your actual config
 const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-    projectId: "YOUR_PROJECT_ID",
-    storageBucket: "YOUR_PROJECT_ID.firebasestorage.app",
-    messagingSenderId: "YOUR_SENDER_ID",
-    appId: "YOUR_APP_ID",
-    measurementId: "YOUR_MEASUREMENT_ID"
+    apiKey: "AIzaSyD6xYmIIz8E5eDQ8JwsWFg_7SV4cmDUncw",
+    authDomain: "ieee-ocd.firebaseapp.com",
+    projectId: "ieee-ocd",
+    storageBucket: "ieee-ocd.firebasestorage.app",
+    messagingSenderId: "113954770966",
+    appId: "1:113954770966:web:edc28364acddf50998a537",
+    measurementId: "G-LZN9KPS4ZT"
 };
 
 // Cloudinary Configuration (Free alternative to Firebase Storage)
@@ -215,6 +215,12 @@ class CloudinaryStorageManager {
      * @returns {Promise<Object>} Upload result
      */
     async uploadFile(file, folder = 'exam-proctor') {
+        if (!this.config.cloudName || this.config.cloudName === 'YOUR_CLOUD_NAME') {
+            // Cloudinary isn't configured yet - fail quietly instead of
+            // hitting the network and logging a scary error every frame.
+            throw new Error('Cloudinary not configured (placeholder cloudName)');
+        }
+
         try {
             const formData = new FormData();
             formData.append('file', file);
@@ -239,7 +245,8 @@ class CloudinaryStorageManager {
                 uploadedAt: new Date().toISOString()
             };
         } catch (error) {
-            console.error('Cloudinary upload failed:', error);
+            // Caller (exam-session.js) already logs a friendly message for
+            // this expected-while-unconfigured case - don't double-log here.
             throw error;
         }
     }

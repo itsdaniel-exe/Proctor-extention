@@ -4,8 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Exam Proctor</title>
     <link rel="stylesheet" href="popup.css">
 </head>
@@ -26,9 +24,11 @@
                 <p class="login-description">Enter your credentials to access the exam system</p>
                 
                 <div class="form-group">
+                    <label for="emailInput">Email Address</label>
                     <input type="email" id="emailInput" placeholder="Enter your email" required>
                 </div>
                 <div class="form-group">
+                    <label for="passwordInput">Password</label>
                     <input type="password" id="passwordInput" placeholder="Enter password" required>
                 </div>
                 
@@ -200,9 +200,9 @@
                         <p><strong>Status:</strong> <span id="examStatus">Waiting to start...</span></p>
                         <p><strong>Time Remaining:</strong> <span id="examTimeRemaining" style="color: #10b981; font-weight: 600;">--:--:--</span></p>
                     </div>
+                    <p class="section-description">Your exam session (camera, screen share, and monitoring) opens in its own tab so it keeps running while this popup is closed.</p>
                     <div class="monitoring-controls">
-                        <button id="enableCameraBtn" class="btn btn-primary">Enable Camera</button>
-                        <button id="shareScreenBtn" class="btn btn-warning">Share Screen</button>
+                        <button id="reopenSessionBtn" class="btn btn-primary">Reopen Exam Session Tab</button>
                         <button id="debugCameraBtn" class="btn btn-secondary" style="font-size: 12px;">🔧 Debug Camera</button>
                         <button id="leaveExamBtn" class="btn btn-danger">Leave Exam</button>
                     </div>
@@ -239,7 +239,7 @@
         </div>
 
         <footer>
-            <p>&copy; 2025 Exam Proctor Extension</p>
+            <p>&copy; <span id="footerYear">2026</span> Exam Proctor Extension</p>
         </footer>
     </div>
 

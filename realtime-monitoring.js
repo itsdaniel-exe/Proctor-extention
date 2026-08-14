@@ -78,24 +78,20 @@ class RealtimeMonitoring {
     // Process frame for AI detection
     async processFrameForAI(userId, blob) {
         try {
-            // Upload to Cloudinary for AI processing
-            const formData = new FormData();
-            formData.append('file', blob);
-            formData.append('upload_preset', 'e7vaaufv');
-            formData.append('folder', `ai-detection/${userId}`);
-            
-            const response = await fetch('https://api.cloudinary.com/v1_1/drgpipjhr/image/upload', {
-                method: 'POST',
-                body: formData
-            });
-            
-            const data = await response.json();
-            
+            // Upload via the shared CloudinaryStorageManager (see
+            // firebase-config.js) instead of hardcoded credentials, so there
+            // is exactly one place upload config/logic lives.
+            const storage = window.firebaseApp && window.firebaseApp.storage;
+            if (!storage) return;
+
+            const result = await storage.uploadFile(blob, `ai-detection/${userId}`);
+
             // Store in Firebase for AI processing
-            await this.updateFrameInFirebase(userId, data.secure_url, 'ai');
-            
+            await this.updateFrameInFirebase(userId, result.url, 'ai');
+
         } catch (error) {
-            console.error('AI frame processing error:', error);
+            // Expected while Cloudinary credentials are still placeholders.
+            console.log('AI frame upload skipped (Cloudinary not configured):', error.message);
         }
     }
 

@@ -507,6 +507,33 @@ body {
     box-shadow: var(--shadow-xl);
 }
 
+.btn-info {
+    background: linear-gradient(135deg, #0ea5e9, #0284c7);
+    color: white;
+}
+
+.btn-info:hover {
+    background: linear-gradient(135deg, #0284c7, #0ea5e9);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-xl);
+}
+
+/* Demo Mode Banner */
+.demo-mode-banner {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(217, 119, 6, 0.15));
+    border-bottom: 2px solid var(--warning-color);
+    color: #fbbf24;
+    padding: 10px 24px;
+    font-weight: 700;
+    font-size: 14px;
+    text-align: center;
+    letter-spacing: 0.01em;
+}
+
+.hidden {
+    display: none !important;
+}
+
 /* Modal Styles */
 .modal {
     position: fixed;
@@ -793,6 +820,149 @@ body {
     font-size: 13px;
     flex: 1;
     min-width: 0;
+}
+
+/* Camera / Screen feed tiles (built by monitoring.js's createMonitoringTile).
+   Previously these were large inline style="..." blocks generated per-tile;
+   moved here so only genuinely per-tile-dynamic values stay inline. */
+.camera-feed-container,
+.screen-feed-container {
+    width: 100%;
+    border-radius: var(--radius);
+    position: relative;
+    overflow: hidden;
+    background: #1e293b;
+}
+
+.camera-feed-container {
+    height: 200px;
+}
+
+.screen-feed-container {
+    height: 150px;
+}
+
+.camera-feed-container img,
+.screen-feed-container img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: var(--radius);
+}
+
+.camera-placeholder,
+.screen-placeholder {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+}
+
+.camera-placeholder {
+    background: linear-gradient(45deg, #1e293b 25%, #334155 25%, #334155 50%, #1e293b 50%, #1e293b 75%, #334155 75%);
+    background-size: 20px 20px;
+    animation: cameraScan 2s linear infinite;
+}
+
+.screen-placeholder {
+    background: linear-gradient(90deg, #0f172a 25%, #1e293b 25%, #1e293b 50%, #0f172a 50%, #0f172a 75%, #1e293b 75%);
+    background-size: 30px 30px;
+    animation: screenScan 3s linear infinite;
+}
+
+@keyframes cameraScan {
+    0% { background-position: 0 0; }
+    100% { background-position: 20px 20px; }
+}
+
+@keyframes screenScan {
+    0% { background-position: 0 0; }
+    100% { background-position: 30px 30px; }
+}
+
+.feed-badge {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+.feed-badge.feed-badge-sm {
+    top: 5px;
+    left: 5px;
+    padding: 2px 6px;
+    font-size: 10px;
+}
+
+.feed-badge-live {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    background: rgba(34, 197, 94, 0.8);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+.feed-off {
+    width: 100%;
+    background: #1e293b;
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+}
+
+.feed-off-camera {
+    height: 200px;
+}
+
+.feed-off-screen {
+    height: 150px;
+}
+
+.violation-count-badge {
+    color: white;
+    padding: 2px 6px;
+    border-radius: 10px;
+    font-size: 11px;
+}
+
+.violation-count-badge.severity-high {
+    background: var(--danger-color);
+}
+
+.violation-count-badge.severity-medium {
+    background: var(--warning-color);
+}
+
+.violation-count-badge.severity-none {
+    background: var(--success-color);
+}
+
+.video-container-stacked {
+    margin-top: 10px;
+}
+
+.video-overlay-bottom-left {
+    top: auto;
+    right: auto;
+    bottom: 8px;
+    left: 8px;
+    padding: 2px 6px;
+    font-size: 10px;
 }
 
 /* Responsive Design */

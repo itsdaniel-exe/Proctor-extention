@@ -5,6 +5,11 @@
   "description": "IEEE Standard Compliant AI-powered exam monitoring system using YOLO v8 ML for real-time proctoring",
   "author": "Exam Proctor Team",
   "homepage_url": "https://github.com/yourusername/exam-proctor-extension",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
   "permissions": [
     "activeTab",
     "tabs",
@@ -13,9 +18,7 @@
     "identity",
     "notifications",
     "webNavigation",
-    "webRequest",
-    "camera",
-    "microphone"
+    "webRequest"
   ],
   "host_permissions": [
     "https://*/*",
@@ -33,23 +36,29 @@
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Exam Proctor"
+    "default_title": "Exam Proctor",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
   },
-  "description": "IEEE Standard Compliant AI-powered exam monitoring system using YOLO v8 ML for real-time proctoring",
   "web_accessible_resources": [
     {
       "resources": [
-        "yolo-worker.js",
         "yolo-model-loader.js",
-        "security-manager.js",
-        "professional-monitoring.js",
         "models/*",
         "firebase/*",
         "firebase-app-compat.js",
         "firebase-auth-compat.js",
         "firebase-firestore-compat.js",
         "firebase-functions-compat.js",
-        "camera-test.html"
+        "firebase-config.js",
+        "camera-test.html",
+        "exam-session.html",
+        "exam-session.js",
+        "exam-session.css",
+        "lib/*"
       ],
       "matches": ["<all_urls>"]
     }

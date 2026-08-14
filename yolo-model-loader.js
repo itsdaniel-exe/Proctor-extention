@@ -63,9 +63,23 @@ class YOLOModelLoader {
                 throw new Error('ONNX.js runtime not available');
             }
 
+            // ort.min.js and its .wasm binaries are vendored locally in lib/
+            // (see manifest.json's web_accessible_resources and
+            // download-onnxruntime.ps1) instead of being loaded from a CDN,
+            // since the extension's CSP (script-src 'self') blocks remote
+            // scripts. Point the wasm loader at the extension's own lib/
+            // folder so it resolves correctly from a chrome-extension://
+            // origin, and force single-threaded wasm since extension pages
+            // aren't cross-origin-isolated (no SharedArrayBuffer available
+            // for the threaded build).
+            if (ort.env && ort.env.wasm) {
+                ort.env.wasm.wasmPaths = chrome.runtime.getURL('lib/');
+                ort.env.wasm.numThreads = 1;
+            }
+
             // Create ONNX inference session
             this.model = await ort.InferenceSession.create(this.modelPath, {
-                executionProviders: ['webgl', 'cpu'],
+                executionProviders: ['wasm'],
                 graphOptimizationLevel: 'all'
             });
 

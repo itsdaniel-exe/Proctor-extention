@@ -4,13 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Exam Proctor - Live Monitoring</title>
     <link rel="stylesheet" href="monitoring.css">
 </head>
 <body>
     <div class="monitoring-container">
+        <div id="demoModeBanner" class="demo-mode-banner hidden" role="status">
+            ⚠️ Demo Mode — Firebase isn't configured, showing simulated data. Violations shown are not real.
+        </div>
         <header class="monitoring-header">
             <div class="header-left">
                 <h1>Live Exam Monitoring</h1>
@@ -86,10 +87,10 @@
     </div>
 
     <!-- Settings Modal -->
-    <div id="settingsModal" class="modal hidden">
+    <div id="settingsModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>Monitoring Settings</h2>
+                <h2 id="settingsModalTitle">Monitoring Settings</h2>
                 <button class="modal-close" id="closeSettings">&times;</button>
             </div>
             <div class="modal-body">
@@ -125,10 +126,10 @@
     </div>
 
     <!-- Violation Detail Modal -->
-    <div id="violationModal" class="modal hidden">
+    <div id="violationModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="violationModalTitle">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>Violation Details</h2>
+                <h2 id="violationModalTitle">Violation Details</h2>
                 <button class="modal-close" id="closeViolation">&times;</button>
             </div>
             <div class="modal-body">
@@ -143,9 +144,26 @@
         </div>
     </div>
 
-    <!-- ONNX.js Runtime for YOLO -->
-    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.16.3/dist/ort.min.js"></script>
-    
+    <!-- Examinee Detail Modal -->
+    <div id="examineeDetailsModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="examineeDetailsModalTitle">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="examineeDetailsModalTitle">Examinee Details</h2>
+                <button class="modal-close" id="closeExamineeDetails">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p><strong>Name:</strong> <span id="examineeDetailName"></span></p>
+                <p><strong>Email:</strong> <span id="examineeDetailEmail"></span></p>
+                <div id="examineeDetailsBody">
+                    <!-- Examinee details will be populated here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ONNX Runtime for YOLO (vendored locally - see lib/, download-onnxruntime.ps1) -->
+    <script src="lib/ort.min.js"></script>
+
     <!-- Firebase SDK -->
     <script src="firebase-app-compat.js"></script>
     <script src="firebase-auth-compat.js"></script>

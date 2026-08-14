@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Exam Session - Exam Proctor</title>
+    <link rel="stylesheet" href="popup.css">
+    <link rel="stylesheet" href="exam-session.css">
+</head>
+<body>
+    <div class="session-container">
+        <header class="session-header">
+            <div class="session-header-left">
+                <h1 id="examTitle">Loading exam...</h1>
+                <p class="session-subtitle" id="examSubtitle">Please keep this tab open for the duration of the exam</p>
+            </div>
+            <div class="session-header-right">
+                <div class="session-timer" id="examTimer">--:--:--</div>
+                <div class="status-indicator" id="monitoringIndicator">
+                    <span class="status-dot" id="monitoringDot"></span>
+                    <span class="status-text" id="monitoringStatusText">Starting monitoring...</span>
+                </div>
+            </div>
+        </header>
+
+        <main class="session-main">
+            <section class="session-panel">
+                <h2>Camera</h2>
+                <div class="media-preview" id="cameraPreviewContainer">
+                    <p class="media-placeholder">Camera not enabled yet</p>
+                </div>
+                <button id="enableCameraBtn" class="btn btn-primary">Enable Camera</button>
+            </section>
+
+            <section class="session-panel">
+                <h2>Screen Share</h2>
+                <div class="media-preview" id="screenPreviewContainer">
+                    <p class="media-placeholder">Screen sharing not enabled yet</p>
+                </div>
+                <button id="shareScreenBtn" class="btn btn-warning">Share Screen</button>
+            </section>
+
+            <section class="session-panel session-panel-wide">
+                <h2>Exam Status</h2>
+                <div class="exam-info">
+                    <p><strong>Status:</strong> <span id="examStatusText">Waiting to start...</span></p>
+                    <p><strong>Monitoring:</strong> <span id="contentMonitoringText">Initializing...</span></p>
+                    <p><strong>Violations flagged:</strong> <span id="violationCount">0</span></p>
+                </div>
+                <button id="leaveExamBtn" class="btn btn-danger">End Exam / Leave</button>
+            </section>
+        </main>
+
+        <div class="session-status-message" id="sessionMessage"></div>
+    </div>
+
+    <!-- Firebase SDK - Local files -->
+    <script src="firebase-app-compat.js"></script>
+    <script src="firebase-auth-compat.js"></script>
+    <script src="firebase-firestore-compat.js"></script>
+    <script src="firebase-functions-compat.js"></script>
+    <script src="firebase-config.js"></script>
+    <script src="exam-session.js"></script>
+</body>
+</html>
