@@ -19,6 +19,4 @@ A Chrome extension for monitoring exams using the YOLO object detection model. I
 *   **Frontend**: HTML, CSS, JavaScript
 *   **AI/ML**: YOLO v8 (ONNX runtime)
 *   **Backend**: Firebase (Auth, Firestore, Functions)
-
-## License
-MIT
+* 
