@@ -6,7 +6,6 @@
 
 A Chrome extension that watches over online exams — live camera and screen monitoring, automatic violation detection, and on-device AI object detection, all without a single frame of video ever leaving the browser for analysis.
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Chrome Extension](https://img.shields.io/badge/Chrome-Extension-4285F4?logo=googlechrome&logoColor=white)](https://developer.chrome.com/docs/extensions/)
 [![Manifest V3](https://img.shields.io/badge/Manifest-V3-brightgreen)](https://developer.chrome.com/docs/extensions/mv3/intro/)
 [![YOLOv8](https://img.shields.io/badge/AI-YOLOv8-orange)](https://github.com/ultralytics/ultralytics)
@@ -32,7 +31,3 @@ A Chrome extension that watches over online exams — live camera and screen mon
 **As an examiner** — register, create an exam, and share the generated code. A live monitoring dashboard opens automatically with camera/screen feeds, a violation log, and per-examinee controls.
 
 **As an examinee** — register, enter the exam code to join, and enable your camera/screen from the dedicated exam-session tab. Violations are detected and reported to the examiner automatically for the rest of the exam.
-
-## License
-
-MIT
